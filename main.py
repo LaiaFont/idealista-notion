@@ -36,14 +36,14 @@ def access_idealista_api():
 def retrieve_rent_url(pagination):
     base_url = "https://api.idealista.com/3.5/"
     locale = "es"
-    operation = "rent"
+    operation = "sale"
     property_type = "homes"
-    center = '41.38879,2.15899'
-    distance = '4000'
+    center = '41.645826,2.739923'
+    distance = '80000'
     sort = 'asc'
-    maxPrice = 1600
-    bedrooms = "2,3,4"
-    bathrooms = "1,2"
+    maxPrice = 350000
+    bedrooms = "4"
+    bathrooms = "2"
 
     url = (f"{base_url}{locale}/search?"
            f"operation={operation}&"
@@ -67,7 +67,10 @@ def retrieve_data(url, token):
 
     result = requests.post(url, headers = headers)
 
-    return json.loads(result.text)
+    if result.status_code != 429:
+        return json.loads(result.text)
+    
+    return None
 
 def access_notion_api():
     API_TOKEN = os.getenv('NOTION_TOKEN')
@@ -80,53 +83,62 @@ def access_notion_api():
 
     return headers
 
-def update_data_notion(headers, data, num_pages=None):
-    url = f"https://api.notion.com/v1/databases/{os.getenv('DATABASE_ID')}/query"
-
-    get_all = num_pages is None
-    page_size = 100 if get_all else num_pages
+def update_data_notion(headers, data):
+    url = f"https://api.notion.com/v1/pages"
 
     formatted_data = {
-        "url": [],
-        "preu": {
-            "number": data[1]
+        "Adreça": {
+            "title": [
+                {
+                    "text": {
+                        "content": data[2]
+                    }
+                }
+            ]
         },
-        "adreça": {
-            "text": {
-                "content": data[2]
-            }
-        } ,
-        "lavabos": {
+        "Preu": {
+            "number": int(data[1])
+        },
+        "URL": {
+            "url": data[0]
+        },
+        "Lavabos": {
             "select": {
-                'name': data[3]
+                "name": str(data[3])
             }
         },
-        "habitacions": {
+        "Habitacions": {
             "select": {
-                'name': data[4]
+                "name": str(data[4])
             }
         },
     }
 
-    payload = {"page_size": page_size}
+    payload = {"parent": { "database_id": os.getenv('DATABASE_ID') }, "properties": formatted_data}
     response = requests.post(url, json=payload, headers=headers)
 
-    data = response.json()
-
-    print(data)
+    if response:
+        print("Added successfully!")
 
 if __name__ == "__main__":
-    # access_token_idealista = access_idealista_api()
-
-    # url = retrieve_rent_url(1)
-
-    # first_results = retrieve_data(url, access_token_idealista)
-    # data = first_results['elementList']
-
-    # for i in range(2, first_results['totalPages']+1):
-    #     # results = retrieve_data(url, access_token_idealista)
-    
+    results = None
+    access_token_idealista = access_idealista_api()
     headers = access_notion_api()
 
-    update_data_notion(headers, data=['https://www.idealista.com/inmueble/100482025/', '1250', 'El Poble Sec - Parc de Montjuïc, Barcelona', 2, 2])
+    url = retrieve_rent_url(1)
 
+    first_results = retrieve_data(url, access_token_idealista)
+
+    if not first_results:
+        print("Couldn't obtain results")
+    else:
+        data = first_results['elementList']
+
+        for i in range(2, first_results['totalPages']+1):
+            results = retrieve_data(url, access_token_idealista)
+
+        if not results:
+            print("Couldn't obtain results")
+        else:
+            for property in results['elementList']:
+                update_data_notion(headers, data=[property['url'], property['price'], property['address'], property['bathrooms'], property['rooms']])
