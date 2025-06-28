@@ -66,11 +66,11 @@ def retrieve_data(url, token):
     }
 
     result = requests.post(url, headers = headers)
-
-    if result.status_code != 429:
-        return json.loads(result.text)
     
-    return None
+    if result.status_code == 429:
+        return None
+    
+    return json.loads(result.text)    
 
 def access_notion_api():
     API_TOKEN = os.getenv('NOTION_TOKEN')
