@@ -66,7 +66,7 @@ def retrieve_data(url, token):
     }
 
     result = requests.post(url, headers = headers)
-    
+    print(result.headers)
     if result.status_code == 429:
         return None
     
@@ -122,6 +122,7 @@ def update_data_notion(headers, data):
 
 if __name__ == "__main__":
     results = None
+    data = []
     access_token_idealista = access_idealista_api()
     headers = access_notion_api()
 
@@ -136,9 +137,10 @@ if __name__ == "__main__":
 
         for i in range(2, first_results['totalPages']+1):
             results = retrieve_data(url, access_token_idealista)
+            data.append(results['elementList'])
 
         if not results:
             print("Couldn't obtain results")
         else:
             for property in results['elementList']:
-                update_data_notion(headers, data=[property['url'], property['price'], property['address'], property['bathrooms'], property['rooms']])
+                update_data_notion(headers, data=[property['url'], property['price'], property['address'] + property['municipality'], property['bathrooms'], property['rooms']])
